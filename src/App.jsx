@@ -2,13 +2,16 @@
 /* eslint-disable no-unused-vars */
 /* eslint-disable react/no-unknown-property */
 import * as THREE from 'three'
-import { useRef, useReducer, useMemo } from 'react'
-import { Environment, Lightformer, OrbitControls } from '@react-three/drei'
+import { useRef, useReducer, useMemo, useState } from 'react'
+import { Environment, Lightformer, OrbitControls, Points } from '@react-three/drei'
 import { BallCollider, Physics, RigidBody } from '@react-three/rapier'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { easing } from 'maath'
 import { Bloom, EffectComposer, Noise } from '@react-three/postprocessing'
 import { BlurPass, Resizer, KernelSize, Resolution, BlendFunction } from 'postprocessing'
+import * as random from 'maath/random'
+import * as buffer from 'maath/buffer'
+import * as misc from 'maath/misc'
 
 const accents = ['#ff4060', '#ffcc00', '#20ffa0', '#4060ff']
 const shuffle = (accent = 0) => [
@@ -44,54 +47,9 @@ export default function App(props) {
   const connectors = useMemo(() => shuffle(accent), [accent])
 
   return (
-    <Canvas
-      flat
-      shadows
-      onClick={click}
-      dpr={[1, 1.5]}
-      gl={{ antialias: false }}
-      // camera={{ position: [0, 0, 30], fov: 17.5, near: 10, far: 40 }}
-      {...props}>
-      {/* <color attach="background" args={['#141622']} /> */}
-      <EffectComposer>
-        <Bloom
-          intensity={0.1} // The bloom intensity.
-          blurPass={undefined} // A blur pass.
-          kernelSize={KernelSize.VERY_LARGE} // blur kernel size
-          luminanceThreshold={0.5} // luminance threshold. Raise this value to mask out darker elements in the scene.
-          luminanceSmoothing={0.2} // smoothness of the luminance threshold. Range is [0, 1]
-          mipmapBlur={true} // Enables or disables mipmap blur.
-          resolutionX={Resolution.AUTO_SIZE} // The horizontal resolution.
-          resolutionY={Resolution.AUTO_SIZE} // The vertical resolution.
-        />
-        <Noise
-          premultiply // enables or disables noise premultiplication
-          blendFunction={BlendFunction.HUE} // blend mode
-        />
-      </EffectComposer>
-
-      <Physics /*debug*/ timeStep="vary" gravity={[0, 0, 0]}>
-        <Pointer />
-        {connectors.map((props, i) => (
-          <Sphere key={i} {...props} />
-        ))}
-      </Physics>
-      <Environment resolution={256}>
-        <group rotation={[-Math.PI / 3, 0, 1]}>
-          <Lightformer form="circle" intensity={20} rotation-x={Math.PI / 2} position={[0, 5, -9]} scale={2} />
-          <Lightformer form="circle" intensity={25} rotation-y={Math.PI / 2} position={[-5, 1, -1]} scale={2} />
-          <Lightformer form="circle" intensity={25} rotation-y={Math.PI / 2} position={[-5, -1, -1]} scale={2} />
-          <Lightformer form="circle" intensity={25} rotation-y={-Math.PI / 2} position={[10, 1, 0]} scale={2} />
-          <Lightformer
-            form="ring"
-            color="#4060ff"
-            intensity={80}
-            onUpdate={(self) => self.lookAt(0, 0, 0)}
-            position={[10, 10, 0]}
-            scale={10}
-          />
-        </group>
-      </Environment>
+    <Canvas orthographic camera={{ zoom: 200 }}>
+      <color attach="background" args={['#000']} />
+      <PointsDemo />
       <OrbitControls />
     </Canvas>
   )
@@ -138,5 +96,79 @@ function Pointer({ vec = new THREE.Vector3() }) {
     <RigidBody position={[5, 5, 5]} type="kinematicPosition" colliders={true} ref={ref}>
       <BallCollider args={[2]} />
     </RigidBody>
+  )
+}
+
+function Effects() {
+  return (
+    <EffectComposer>
+      <Bloom
+        intensity={0.1} // The bloom intensity.
+        blurPass={undefined} // A blur pass.
+        kernelSize={KernelSize.VERY_LARGE} // blur kernel size
+        luminanceThreshold={0.5} // luminance threshold. Raise this value to mask out darker elements in the scene.
+        luminanceSmoothing={0.2} // smoothness of the luminance threshold. Range is [0, 1]
+        mipmapBlur={true} // Enables or disables mipmap blur.
+        resolutionX={Resolution.AUTO_SIZE} // The horizontal resolution.
+        resolutionY={Resolution.AUTO_SIZE} // The vertical resolution.
+      />
+      <Noise
+        premultiply // enables or disables noise premultiplication
+        blendFunction={BlendFunction.HUE} // blend mode
+      />
+    </EffectComposer>
+  )
+}
+
+function Env() {
+  return (
+    <Environment resolution={256}>
+      <group rotation={[-Math.PI / 3, 0, 1]}>
+        <Lightformer form="circle" intensity={20} rotation-x={Math.PI / 2} position={[0, 5, -9]} scale={2} />
+        <Lightformer form="circle" intensity={25} rotation-y={Math.PI / 2} position={[-5, 1, -1]} scale={2} />
+        <Lightformer form="circle" intensity={25} rotation-y={Math.PI / 2} position={[-5, -1, -1]} scale={2} />
+        <Lightformer form="circle" intensity={25} rotation-y={-Math.PI / 2} position={[10, 1, 0]} scale={2} />
+        <Lightformer
+          form="ring"
+          color="#4060ff"
+          intensity={80}
+          onUpdate={(self) => self.lookAt(0, 0, 0)}
+          position={[10, 10, 0]}
+          scale={10}
+        />
+      </group>
+    </Environment>
+  )
+}
+
+const rotationAxis = new THREE.Vector3(0, 1, 0).normalize()
+const q = new THREE.Quaternion()
+
+function PointsDemo(props) {
+  const pointsRef = useRef()
+  const [{ box, sphere, final }] = useState(() => {
+    const box = random.inBox(new Float32Array(10_000), { sides: [1, 2, 1] })
+    const sphere = random.inSphere(box.slice(0), { radius: 0.75 })
+    const final = box.slice(1) // final buffer that will be used for the points mesh
+
+    return { box, sphere, final }
+  })
+
+  useFrame(({ clock }) => {
+    const et = clock.getElapsedTime()
+    const t = misc.remap(Math.sin(et), [-1, 1], [0, 1])
+    const t2 = misc.remap(Math.cos(et * 3), [-1, 1], [0, 1])
+
+    buffer.rotate(box, {
+      q: q.setFromAxisAngle(rotationAxis, t2 * 0.1)
+    })
+
+    buffer.lerp(box, sphere, final, t)
+  })
+
+  return (
+    <Points positions={final} stride={3} ref={pointsRef} {...props}>
+      <pointsMaterial size={1} />
+    </Points>
   )
 }
