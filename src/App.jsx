@@ -7,6 +7,8 @@ import { Environment, Lightformer, OrbitControls } from '@react-three/drei'
 import { BallCollider, Physics, RigidBody } from '@react-three/rapier'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { easing } from 'maath'
+import { Bloom, EffectComposer, Noise } from '@react-three/postprocessing'
+import { BlurPass, Resizer, KernelSize, Resolution, BlendFunction } from 'postprocessing'
 
 const accents = ['#ff4060', '#ffcc00', '#20ffa0', '#4060ff']
 const shuffle = (accent = 0) => [
@@ -43,14 +45,31 @@ export default function App(props) {
 
   return (
     <Canvas
-      // flat
+      flat
       shadows
       onClick={click}
       dpr={[1, 1.5]}
-      gl={{ antialias: true }}
-      camera={{ position: [0, 0, 30], fov: 17.5, near: 10, far: 40 }}
+      gl={{ antialias: false }}
+      // camera={{ position: [0, 0, 30], fov: 17.5, near: 10, far: 40 }}
       {...props}>
-      <color attach="background" args={['#141622']} />
+      {/* <color attach="background" args={['#141622']} /> */}
+      <EffectComposer>
+        <Bloom
+          intensity={0.1} // The bloom intensity.
+          blurPass={undefined} // A blur pass.
+          kernelSize={KernelSize.VERY_LARGE} // blur kernel size
+          luminanceThreshold={0.5} // luminance threshold. Raise this value to mask out darker elements in the scene.
+          luminanceSmoothing={0.2} // smoothness of the luminance threshold. Range is [0, 1]
+          mipmapBlur={true} // Enables or disables mipmap blur.
+          resolutionX={Resolution.AUTO_SIZE} // The horizontal resolution.
+          resolutionY={Resolution.AUTO_SIZE} // The vertical resolution.
+        />
+        <Noise
+          premultiply // enables or disables noise premultiplication
+          blendFunction={BlendFunction.HUE} // blend mode
+        />
+      </EffectComposer>
+
       <Physics /*debug*/ timeStep="vary" gravity={[0, 0, 0]}>
         <Pointer />
         {connectors.map((props, i) => (
@@ -59,7 +78,7 @@ export default function App(props) {
       </Physics>
       <Environment resolution={256}>
         <group rotation={[-Math.PI / 3, 0, 1]}>
-          <Lightformer form="circle" intensity={50} rotation-x={Math.PI / 2} position={[0, 5, -9]} scale={2} />
+          <Lightformer form="circle" intensity={20} rotation-x={Math.PI / 2} position={[0, 5, -9]} scale={2} />
           <Lightformer form="circle" intensity={25} rotation-y={Math.PI / 2} position={[-5, 1, -1]} scale={2} />
           <Lightformer form="circle" intensity={25} rotation-y={Math.PI / 2} position={[-5, -1, -1]} scale={2} />
           <Lightformer form="circle" intensity={25} rotation-y={-Math.PI / 2} position={[10, 1, 0]} scale={2} />
@@ -90,18 +109,18 @@ function Sphere({
 }) {
   const api = useRef()
   const ref = useRef()
-  const pos = useMemo(() => position || [r(10), r(10), r(10)], [position, r])
+  const pos = useMemo(() => position || [r(2), r(3), r(10)], [])
   useFrame((state, delta) => {
     delta = Math.min(0.1, delta)
     api.current?.applyImpulse(vec.copy(api.current.translation()).negate().multiplyScalar(0.2))
     easing.dampC(ref.current.material.color, color, 0.2, delta)
   })
   return (
-    <RigidBody linearDamping={4} angularDamping={1} friction={0.1} position={pos} ref={api} colliders={false}>
-      <BallCollider args={[2]} />
+    <RigidBody linearDamping={2} angularDamping={1} friction={0.2} position={pos} ref={api} colliders={false}>
+      <BallCollider args={[1]} />
       <mesh ref={ref} castShadow receiveShadow>
         <sphereGeometry args={[1, 64, 64]} />
-        <meshStandardMaterial {...props} />
+        <meshStandardMaterial toneMapped={false} emissiveIntensity={0.2} {...props} />
         {children}
       </mesh>
     </RigidBody>
@@ -116,7 +135,7 @@ function Pointer({ vec = new THREE.Vector3() }) {
     )
   )
   return (
-    <RigidBody position={[5, 5, 5]} type="kinematicPosition" colliders={false} ref={ref}>
+    <RigidBody position={[5, 5, 5]} type="kinematicPosition" colliders={true} ref={ref}>
       <BallCollider args={[2]} />
     </RigidBody>
   )
