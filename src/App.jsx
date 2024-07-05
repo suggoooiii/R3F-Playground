@@ -10,9 +10,9 @@ import { easing } from 'maath'
 
 const accents = ['#ff4060', '#ffcc00', '#20ffa0', '#4060ff']
 const shuffle = (accent = 0) => [
-  { color: '#444', roughness: 0.1, metalness: 0.5 },
-  { color: '#444', roughness: 0.1, metalness: 0.5 },
-  { color: '#444', roughness: 0.1, metalness: 0.5 },
+  { color: '#444', roughness: 0.1, metalness: 0.8 },
+  { color: '#444', roughness: 0.1, metalness: 0.8 },
+  { color: '#444', roughness: 0.1, metalness: 0.8 },
   { color: 'white', roughness: 0.1, metalness: 0.1 },
   { color: 'white', roughness: 0.1, metalness: 0.1 },
   { color: 'white', roughness: 0.1, metalness: 0.1 },
@@ -25,7 +25,13 @@ const shuffle = (accent = 0) => [
   { color: 'white', roughness: 0.1 },
   { color: 'white', roughness: 0.2 },
   { color: 'white', roughness: 0.1 },
-  { color: accents[accent], roughness: 0.1, accent: true, transparent: true, opacity: 0.5 },
+  {
+    color: accents[accent],
+    roughness: 0.1,
+    accent: true,
+    transparent: true,
+    opacity: 0.5
+  },
   { color: accents[accent], roughness: 0.3, accent: true },
   { color: accents[accent], roughness: 0.1, accent: true }
 ]
@@ -36,7 +42,14 @@ export default function App(props) {
   const connectors = useMemo(() => shuffle(accent), [accent])
 
   return (
-    <Canvas flat shadows onClick={click} dpr={[1, 1.5]} gl={{ antialias: false }} camera={{ position: [0, 0, 30], fov: 17.5, near: 10, far: 40 }} {...props}>
+    <Canvas
+      // flat
+      shadows
+      onClick={click}
+      dpr={[1, 1.5]}
+      gl={{ antialias: true }}
+      camera={{ position: [0, 0, 30], fov: 17.5, near: 10, far: 40 }}
+      {...props}>
       <color attach="background" args={['#141622']} />
       <Physics /*debug*/ timeStep="vary" gravity={[0, 0, 0]}>
         <Pointer />
@@ -46,11 +59,18 @@ export default function App(props) {
       </Physics>
       <Environment resolution={256}>
         <group rotation={[-Math.PI / 3, 0, 1]}>
-          <Lightformer form="ring" intensity={50} rotation-x={Math.PI / 2} position={[0, 5, -9]} scale={2} />
+          <Lightformer form="circle" intensity={50} rotation-x={Math.PI / 2} position={[0, 5, -9]} scale={2} />
           <Lightformer form="circle" intensity={25} rotation-y={Math.PI / 2} position={[-5, 1, -1]} scale={2} />
           <Lightformer form="circle" intensity={25} rotation-y={Math.PI / 2} position={[-5, -1, -1]} scale={2} />
-          <Lightformer form="circle" intensity={25} rotation-y={-Math.PI / 2} position={[10, 1, 0]} scale={8} />
-          <Lightformer form="ring" color="#4060ff" intensity={80} onUpdate={(self) => self.lookAt(0, 0, 0)} position={[10, 10, 0]} scale={10} />
+          <Lightformer form="circle" intensity={25} rotation-y={-Math.PI / 2} position={[10, 1, 0]} scale={2} />
+          <Lightformer
+            form="ring"
+            color="#4060ff"
+            intensity={80}
+            onUpdate={(self) => self.lookAt(0, 0, 0)}
+            position={[10, 10, 0]}
+            scale={10}
+          />
         </group>
       </Environment>
       <OrbitControls />
@@ -58,7 +78,16 @@ export default function App(props) {
   )
 }
 
-function Sphere({ position, children, vec = new THREE.Vector3(), scale, r = THREE.MathUtils.randFloatSpread, accent, color = 'white', ...props }) {
+function Sphere({
+  position,
+  children,
+  vec = new THREE.Vector3(),
+  scale,
+  r = THREE.MathUtils.randFloatSpread,
+  accent,
+  color = 'white',
+  ...props
+}) {
   const api = useRef()
   const ref = useRef()
   const pos = useMemo(() => position || [r(10), r(10), r(10)], [position, r])
@@ -68,7 +97,7 @@ function Sphere({ position, children, vec = new THREE.Vector3(), scale, r = THRE
     easing.dampC(ref.current.material.color, color, 0.2, delta)
   })
   return (
-    <RigidBody linearDamping={4} angularDamping={1} friction={0.6} position={pos} ref={api} colliders={false}>
+    <RigidBody linearDamping={4} angularDamping={1} friction={0.1} position={pos} ref={api} colliders={false}>
       <BallCollider args={[2]} />
       <mesh ref={ref} castShadow receiveShadow>
         <sphereGeometry args={[1, 64, 64]} />
@@ -81,7 +110,11 @@ function Sphere({ position, children, vec = new THREE.Vector3(), scale, r = THRE
 
 function Pointer({ vec = new THREE.Vector3() }) {
   const ref = useRef()
-  useFrame(({ pointer, viewport }) => ref.current?.setNextKinematicTranslation(vec.set((pointer.x * viewport.width) / 2, (pointer.y * viewport.height) / 2, 0)))
+  useFrame(({ pointer, viewport }) =>
+    ref.current?.setNextKinematicTranslation(
+      vec.set((pointer.x * viewport.width) / 2, (pointer.y * viewport.height) / 2, 0)
+    )
+  )
   return (
     <RigidBody position={[5, 5, 5]} type="kinematicPosition" colliders={false} ref={ref}>
       <BallCollider args={[2]} />
