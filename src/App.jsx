@@ -5,16 +5,18 @@ import { Canvas, useFrame } from '@react-three/fiber'
 import { easing } from 'maath'
 import { forwardRef, useEffect, useState } from 'react'
 import { Bloom, EffectComposer, GodRays } from '@react-three/postprocessing'
+import Thing from './Thing'
 
 export default function App() {
   return (
-    <Canvas camera={{ position: [0, 0, 30], fov: 35, near: 1, far: 60 }} gl={{ antialias: false }}>
-      <color attach="background" args={['#050505']} />
-      <ambientLight />
-      <Screen />
+    // <Canvas camera={{ position: [0, 0, 30], fov: 35, near: 1, far: 60 }} gl={{ antialias: false }}>
+    //   <color attach="background" args={['#050505']} />
+    //   <ambientLight />
+    //   <Screen />
 
-      <Floor />
-    </Canvas>
+    //   <Floor />
+    // </Canvas>
+    <Thing />
   )
 }
 
