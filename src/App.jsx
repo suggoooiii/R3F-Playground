@@ -2,8 +2,8 @@
 /* eslint-disable no-unused-vars */
 /* eslint-disable react/no-unknown-property */
 import * as THREE from 'three'
-import { useRef, useReducer, useMemo, useState } from 'react'
-import { Environment, Lightformer, OrbitControls, Points } from '@react-three/drei'
+import { useRef, useReducer, useMemo, useState, useEffect } from 'react'
+import { Environment, Lightformer, Line, OrbitControls, Points } from '@react-three/drei'
 import { BallCollider, Physics, RigidBody } from '@react-three/rapier'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { easing } from 'maath'
@@ -12,6 +12,7 @@ import { BlurPass, Resizer, KernelSize, Resolution, BlendFunction } from 'postpr
 import * as random from 'maath/random'
 import * as buffer from 'maath/buffer'
 import * as misc from 'maath/misc'
+import complexWave from './easings/complexWave'
 
 const accents = ['#ff4060', '#ffcc00', '#20ffa0', '#4060ff']
 const shuffle = (accent = 0) => [
@@ -141,34 +142,52 @@ function Env() {
   )
 }
 
-const rotationAxis = new THREE.Vector3(0, 1, 0).normalize()
+const rotationAxis = new THREE.Vector3(0.2, 1, 0.5).normalize()
 const q = new THREE.Quaternion()
 
 function PointsDemo(props) {
   const pointsRef = useRef()
-  const [{ box, sphere, final }] = useState(() => {
-    const box = random.inBox(new Float32Array(90000), { sides: [1, 2, 1] })
-    const sphere = random.inSphere(box.slice(0), { radius: 0.75 })
-    const final = box.slice(0) // final buffer that will be used for the points mesh
+  // export declare function inRect<T extends TypedArray>(buffer: T, rect?: Rect, rng?: Generator): T;
 
+  useEffect(() => {
+    console.log('🚀 ~ useEffect ~ pointsRef.current:', pointsRef.current)
+  }, [])
+  const [{ box, sphere, final }] = useState(() => {
+    const box = random.inBox(new Float32Array(10000 * 3), { side: 3 })
+    const sphere = random.inSphere(new Float32Array(10000 * 3), { radius: 0.75 })
+    const final = box.slice(0) // final buffer that will be used for the points mesh
     return { box, sphere, final }
   })
 
+  // export declare function inSphere(buffer: TypedArray, sphere?: Sphere, rng?: Generator): TypedArray;
+
   useFrame(({ clock }) => {
     const et = clock.getElapsedTime()
+    const delta = clock.getDelta()
     const t = misc.remap(Math.sin(et), [-1, 1], [0, 1])
-    const t2 = misc.remap(Math.cos(et * 3), [-1, 1], [0, 1])
+    const t2 = misc.remap(Math.cos(et * 1), [-1, 1], [0, 1])
+    const t3 = misc.remap(complexWave(et), [-1, 1], [0, 1])
+    const t4 = easing.linear(t)
 
-    buffer.rotate(box, {
-      q: q.setFromAxisAngle(rotationAxis, t2 * 0.1)
+    // pointsRef.current.material.color.setHSL(t, 3, 0.2)
+    // change material color with dampC
+    // easing.dampC(pointsRef.current.material.color, { r: 0.2, g: 0.2, b: 0.5 }, 0.25, delta)
+
+    buffer.rotate(sphere, {
+      q: q.setFromAxisAngle(rotationAxis, t4 * 0.05)
     })
-
-    buffer.lerp(box, sphere, final, t)
+    buffer.swizzle(box, 4, 'xzy')
+    buffer.lerp(box, sphere, final, t4)
   })
+  // export declare function swizzle(buffer: TypedArray, stride?: number, swizzle?: string): TypedArray;
 
   return (
-    <Points positions={final} stride={3} ref={pointsRef} {...props}>
-      <pointsMaterial size={1} />
+    <Points
+      positions={final}
+      stride={3}
+      //    ref={pointsRef}
+      {...props}>
+      <pointsMaterial size={1} blending={2} />
     </Points>
   )
 }
