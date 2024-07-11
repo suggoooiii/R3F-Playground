@@ -68,7 +68,7 @@ function Sphere({
 }) {
   const api = useRef()
   const ref = useRef()
-  const pos = useMemo(() => position || [r(10), r(10), r(10)], [])
+  const pos = useMemo(() => position || [r(10), r(10), r(10)], [position, r])
   useFrame((state, delta) => {
     delta = Math.min(0.1, delta)
     api.current?.applyImpulse(vec.copy(api.current.translation()).negate().multiplyScalar(0.2))
@@ -149,12 +149,15 @@ function PointsDemo(props) {
   const pointsRef = useRef()
   // export declare function inRect<T extends TypedArray>(buffer: T, rect?: Rect, rng?: Generator): T;
 
+  const [radius, setRadius] = useState(2.75)
+
   useEffect(() => {
     console.log('🚀 ~ useEffect ~ pointsRef.current:', pointsRef.current)
+    console.log('🚀 ~ useEffect ~ radius:', radius)
   }, [])
   const [{ box, sphere, final }] = useState(() => {
-    const box = random.inBox(new Float32Array(10000 * 3), { side: 3 })
-    const sphere = random.inSphere(new Float32Array(10000 * 3), { radius: 0.75 })
+    const box = random.inBox(new Float32Array(10000 * 3), { side: 4 })
+    const sphere = random.inSphere(new Float32Array(10000 * 3), { radius: radius })
     const final = box.slice(0) // final buffer that will be used for the points mesh
     return { box, sphere, final }
   })
@@ -168,6 +171,12 @@ function PointsDemo(props) {
     const t2 = misc.remap(Math.cos(et * 1), [-1, 1], [0, 1])
     const t3 = misc.remap(complexWave(et), [-1, 1], [0, 1])
     const t4 = easing.linear(t)
+    const newRadius = 2.75 + Math.sin(et) * 2 // Oscillate between 3.75 and 7.75
+    setRadius(newRadius)
+
+    // Animate color
+    const hue = (Math.sin(et * 0.1) + 1) / 2
+    pointsRef.current.material.color.setHSL(hue, 1, 0.5)
 
     // pointsRef.current.material.color.setHSL(t, 3, 0.2)
     // change material color with dampC
@@ -182,12 +191,8 @@ function PointsDemo(props) {
   // export declare function swizzle(buffer: TypedArray, stride?: number, swizzle?: string): TypedArray;
 
   return (
-    <Points
-      positions={final}
-      stride={3}
-      //    ref={pointsRef}
-      {...props}>
-      <pointsMaterial size={1} blending={2} />
+    <Points positions={final} stride={3} ref={pointsRef} {...props}>
+      <pointsMaterial size={1} blending={1} />
     </Points>
   )
 }
