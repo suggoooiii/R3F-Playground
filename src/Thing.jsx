@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 /* eslint-disable react/no-unknown-property */
 import React, { useRef } from 'react'
 import { Canvas, extend, useFrame } from '@react-three/fiber'
