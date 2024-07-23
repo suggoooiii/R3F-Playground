@@ -8,7 +8,7 @@ uniform float uElevation;
 uniform vec3 uLowColor;
 uniform vec3 uHighColor;
 
-#include "lygia/generative/cnoise.glsl"
+#include "../../lygia/generative/cnoise.glsl"
 
 
 varying vec3 vPosition;

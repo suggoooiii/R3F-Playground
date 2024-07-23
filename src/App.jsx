@@ -3,9 +3,21 @@
 /* eslint-disable react/no-unknown-property */
 import * as THREE from 'three'
 import { useRef, useReducer, useMemo, useState, useEffect } from 'react'
-import { Environment, Lightformer, Line, OrbitControls, Points, Sky, SpotLight, Stars } from '@react-three/drei'
+import {
+  Environment,
+  Lightformer,
+  Line,
+  OrbitControls,
+  Points,
+  ScreenQuad,
+  Sky,
+  SpotLight,
+  Stars,
+  TorusKnot,
+  useDepthBuffer
+} from '@react-three/drei'
 import { BallCollider, Physics, RigidBody } from '@react-three/rapier'
-import { Canvas, useFrame } from '@react-three/fiber'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { easing } from 'maath'
 import { Bloom, EffectComposer, Noise } from '@react-three/postprocessing'
 import { BlurPass, Resizer, KernelSize, Resolution, BlendFunction } from 'postprocessing'
@@ -15,6 +27,7 @@ import * as misc from 'maath/misc'
 import complexWave from './easings/complexWave'
 import fragterrain from './glsl/terrain.frag'
 import fragvert from './glsl/terrain.vert'
+import { useControls } from 'leva'
 
 const accents = ['#ff4060', '#ffcc00', '#20ffa0', '#4060ff']
 const shuffle = (accent = 0) => [
@@ -49,19 +62,47 @@ export default function App(props) {
   const [accent, click] = useReducer((state) => ++state % accents.length, 0)
   const connectors = useMemo(() => shuffle(accent), [accent])
 
+  const starsProps = useControls('Stars', {
+    radius: { value: 100, min: 10, max: 1000, step: 10 },
+    depth: { value: 50, min: 1, max: 100, step: 1 },
+    count: { value: 5000, min: 100, max: 10000, step: 100 },
+    factor: { value: 4, min: 1, max: 10, step: 0.1 },
+    saturation: { value: 0, min: 0, max: 1, step: 0.1 },
+    fade: { value: true },
+    speed: { value: 1, min: 0, max: 10, step: 0.1 }
+  })
+  const torusKnotProps = useControls('TorusKnot', {
+    radius: { value: 1, min: 0.1, max: 5, step: 0.1 },
+    tube: { value: 0.4, min: 0.1, max: 1, step: 0.05 },
+    tubularSegments: { value: 64, min: 3, max: 200, step: 1 },
+    radialSegments: { value: 8, min: 3, max: 20, step: 1 },
+    p: { value: 2, min: 1, max: 10, step: 1 },
+    q: { value: 3, min: 1, max: 10, step: 1 },
+    scale: { value: 1, min: 0.1, max: 2, step: 0.1 },
+    positionY: { value: 0, min: -5, max: 5, step: 0.1 },
+    rotationSpeed: { value: 1, min: 0, max: 5, step: 0.1 },
+    lowColor: '#1e6091',
+    highColor: '#ffffff'
+  })
+
   return (
-    <Canvas orthographic camera={{ zoom: 100 }}>
+    <Canvas orthographic camera={{}}>
       {/* <PointsDemo /> */}
-      <Stars radius={100} depth={50} count={500} factor={4} saturation={0} fade speed={1} />
-      <ambientLight intensity={0.5} />
-      <pointLight position={[10, 10, 10]} />
-      <Terrain />
+      <Stars {...starsProps} />
+      {/* <Terrain /> */}
+      <TorusKnotComponent {...torusKnotProps} />
       <OrbitControls />
     </Canvas>
   )
 }
 
-function Terrain({ width = 100, height = 100, resolution = 1, elevation = 10 }) {
+function Terrain({ width = 100, height = 100, resolution = 2, elevation = 10 }) {
+  const [currentElevation, setCurrentElevation] = useState(elevation)
+
+  useEffect(() => {
+    // console.log('🚀 ~ Terrain ~ currentElevation:', currentElevation)
+  })
+
   const meshRef = useRef()
   const uniformsRef = useRef({
     uTime: { value: 0 },
@@ -78,20 +119,93 @@ function Terrain({ width = 100, height = 100, resolution = 1, elevation = 10 }) 
 
   useFrame((state) => {
     const { clock } = state
+
+    // Complex elevation change using multiple sine waves
+    const newElevation =
+      elevation +
+      Math.sin(clock.getElapsedTime() * 2.2) * 10 +
+      Math.sin(clock.getElapsedTime() * 1.1) * 5 +
+      Math.sin(clock.getElapsedTime() * 0.5) * 9
+
+    setCurrentElevation(newElevation)
+
     if (meshRef.current) {
       meshRef.current.material.uniforms.uTime.value = clock.getElapsedTime()
+      meshRef.current.material.uniforms.uElevation.value = newElevation
     }
   })
 
   return (
     <mesh ref={meshRef} geometry={geometry}>
       <shaderMaterial
-        vertexShader={fragterrain}
+        vertexShader={fragvert}
         fragmentShader={fragterrain}
         uniforms={uniformsRef.current}
         side={THREE.DoubleSide}
       />
     </mesh>
+  )
+}
+
+function TorusKnotComponent({ scale, positionY, rotationSpeed, lowColor, highColor, ...props }) {
+  const meshRef = useRef()
+  const { clock } = useThree()
+
+  const uniformsRef = useRef({
+    uTime: { value: 0 },
+    uElevation: { value: 0 },
+    uLowColor: { value: new THREE.Color(lowColor) },
+    uHighColor: { value: new THREE.Color(highColor) }
+  })
+
+  useEffect(() => {
+    uniformsRef.current.uLowColor.value.set(lowColor)
+    uniformsRef.current.uHighColor.value.set(highColor)
+  }, [lowColor, highColor])
+
+  useFrame((state, delta) => {
+    const { clock } = state
+
+    if (meshRef.current) {
+      meshRef.current.rotation.x += delta * rotationSpeed
+      meshRef.current.rotation.y += delta * rotationSpeed
+      meshRef.current.material.uniforms.uTime.value = clock.getElapsedTime()
+
+      // Update uLowColor
+      const hue = Math.sin(clock.getElapsedTime() * 0.1) + 1 / 2 // Oscillates between 0 and 1
+      meshRef.current.material.uniforms.uLowColor.value.setHSL(hue, 1, 0.5)
+    }
+  })
+
+  return (
+    <TorusKnot
+      ref={meshRef}
+      args={[props.radius, props.tube, props.tubularSegments, props.radialSegments, props.p, props.q]}
+      scale={scale}
+      position={[0, positionY, 0]}>
+      <shaderMaterial
+        vertexShader={`
+          varying vec3 vPosition;
+          void main() {
+            vPosition = position;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }
+        `}
+        fragmentShader={`
+          uniform vec3 uLowColor;
+          uniform vec3 uHighColor;
+          uniform float uTime;
+          varying vec3 vPosition;
+          
+          void main() {
+            float t = sin(vPosition.y * 2.0 + uTime) * 0.5 + 0.5;
+            vec3 color = mix(uLowColor, uHighColor, t);
+            gl_FragColor = vec4(color, 1.0);
+          }
+        `}
+        uniforms={uniformsRef.current}
+      />
+    </TorusKnot>
   )
 }
 
@@ -271,7 +385,7 @@ function Scene() {
   )
 }
 
-function MovingSpot({ vec = new Vector3(), ...props }) {
+function MovingSpot({ vec = new THREE.Vector3(), ...props }) {
   const light = useRef()
   const viewport = useThree((state) => state.viewport)
   useFrame((state) => {
