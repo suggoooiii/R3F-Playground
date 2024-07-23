@@ -3,7 +3,7 @@
 /* eslint-disable react/no-unknown-property */
 import * as THREE from 'three'
 import { useRef, useReducer, useMemo, useState, useEffect } from 'react'
-import { Environment, Lightformer, Line, OrbitControls, Points } from '@react-three/drei'
+import { Environment, Lightformer, Line, OrbitControls, Points, Sky, SpotLight, Stars } from '@react-three/drei'
 import { BallCollider, Physics, RigidBody } from '@react-three/rapier'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { easing } from 'maath'
@@ -13,6 +13,8 @@ import * as random from 'maath/random'
 import * as buffer from 'maath/buffer'
 import * as misc from 'maath/misc'
 import complexWave from './easings/complexWave'
+import fragterrain from './glsl/terrain.frag'
+import fragvert from './glsl/terrain.vert'
 
 const accents = ['#ff4060', '#ffcc00', '#20ffa0', '#4060ff']
 const shuffle = (accent = 0) => [
@@ -48,11 +50,48 @@ export default function App(props) {
   const connectors = useMemo(() => shuffle(accent), [accent])
 
   return (
-    <Canvas orthographic camera={{ zoom: 200 }}>
-      <color attach="background" args={['#000']} />
-      <PointsDemo />
+    <Canvas orthographic camera={{ zoom: 100 }}>
+      {/* <PointsDemo /> */}
+      <Stars radius={100} depth={50} count={500} factor={4} saturation={0} fade speed={1} />
+      <ambientLight intensity={0.5} />
+      <pointLight position={[10, 10, 10]} />
+      <Terrain />
       <OrbitControls />
     </Canvas>
+  )
+}
+
+function Terrain({ width = 100, height = 100, resolution = 1, elevation = 10 }) {
+  const meshRef = useRef()
+  const uniformsRef = useRef({
+    uTime: { value: 0 },
+    uElevation: { value: elevation },
+    uLowColor: { value: new THREE.Color(0x1e6091) },
+    uHighColor: { value: new THREE.Color(0xffffff) }
+  })
+
+  const geometry = useMemo(() => {
+    const geo = new THREE.PlaneGeometry(width, height, width / resolution, height / resolution)
+    geo.rotateX(-Math.PI / 2)
+    return geo
+  }, [width, height, resolution])
+
+  useFrame((state) => {
+    const { clock } = state
+    if (meshRef.current) {
+      meshRef.current.material.uniforms.uTime.value = clock.getElapsedTime()
+    }
+  })
+
+  return (
+    <mesh ref={meshRef} geometry={geometry}>
+      <shaderMaterial
+        vertexShader={fragterrain}
+        fragmentShader={fragterrain}
+        uniforms={uniformsRef.current}
+        side={THREE.DoubleSide}
+      />
+    </mesh>
   )
 }
 
@@ -182,12 +221,68 @@ function PointsDemo(props) {
   // export declare function swizzle(buffer: TypedArray, stride?: number, swizzle?: string): TypedArray;
 
   return (
-    <Points
-      positions={final}
-      stride={3}
-      //    ref={pointsRef}
-      {...props}>
-      <pointsMaterial size={1} blending={2} />
-    </Points>
+    <>
+      <Sky distance={45000000} sunPosition={[1, 1, 1]} inclination={0} azimuth={0.25} {...props} />
+      <Points
+        positions={final}
+        stride={3}
+        //    ref={pointsRef}
+        {...props}>
+        <pointsMaterial size={1} blending={1} />
+      </Points>
+      <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade speed={1} />
+    </>
+  )
+}
+
+function Scene() {
+  // This is a super cheap depth buffer that only renders once (frames: 1 is optional!), which works well for static scenes
+  // Spots can optionally use that for realism, learn about soft particles here: http://john-chapman-graphics.blogspot.com/2013/01/good-enough-volumetrics-for-spotlights.html
+  const depthBuffer = useDepthBuffer({ frames: 1 })
+  const { nodes, materials } = useGLTF(
+    'https://vazxmixjsiawhamofees.supabase.co/storage/v1/object/public/models/dragon/model.gltf'
+  )
+  return (
+    <>
+      <MovingSpot depthBuffer={depthBuffer} color="#0c8cbf" position={[3, 3, 2]} />
+      <MovingSpot depthBuffer={depthBuffer} color="#b00c3f" position={[1, 3, 0]} />
+      <mesh
+        position={[0, -1.03, 0]}
+        castShadow
+        receiveShadow
+        geometry={nodes.dragon.geometry}
+        material={materials['Default OBJ.001']}
+        dispose={null}
+      />
+      <mesh receiveShadow position={[0, -1, 0]} rotation-x={-Math.PI / 2}>
+        <planeGeometry args={[50, 50]} />
+        <meshPhongMaterial />
+      </mesh>
+    </>
+  )
+}
+
+function MovingSpot({ vec = new Vector3(), ...props }) {
+  const light = useRef()
+  const viewport = useThree((state) => state.viewport)
+  useFrame((state) => {
+    light.current.target.position.lerp(
+      vec.set((state.mouse.x * viewport.width) / 2, (state.mouse.y * viewport.height) / 2, 0),
+      0.1
+    )
+    light.current.target.updateMatrixWorld()
+  })
+  return (
+    <SpotLight
+      castShadow
+      ref={light}
+      penumbra={1}
+      distance={6}
+      angle={0.35}
+      attenuation={5}
+      anglePower={4}
+      intensity={2}
+      {...props}
+    />
   )
 }
